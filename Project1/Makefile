@@ -4,3 +4,5 @@ SALSCF: SALSCF.cc
 
 clean:
 	rm SALSCF
+clean_log:
+	rm *.txt *.log
