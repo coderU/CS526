@@ -7,15 +7,20 @@
 #include <sstream>
 #include <time.h>
 #include <openssl/sha.h>
-#include <openssl/des.h>
+#include <openssl/aes.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <openssl/md5.h>
+#include <openssl/bio.h>
+#include <openssl/x509.h>
+#include <openssl/pem.h>
+#include <openssl/rsa.h>
+#include <openssl/ssl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdexcept>
-#define AES_BLOCK_SIZE 256
+
 
 using namespace std;
 int DEBUG = 1;
@@ -31,6 +36,156 @@ time_t dplus;
 string idlog;
 string A0;
 string LastA;
+int padding = RSA_PKCS1_PADDING;
+int glb_k0_len;
+const char hexmap[] = {'0', '1', '2', '3', '4', '5', '6', '7',
+                           '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+/*
+unsigned char* strHex(string data){
+  unsigned char ret[data.length()/2];
+  return ret;
+}
+*/
+
+
+std::string hexStr(unsigned char *data, int len)
+{
+  std::string s(len * 2, ' ');
+  for (int i = 0; i < len; ++i) {
+    s[2 * i]     = hexmap[(data[i] & 0xF0) >> 4];
+    s[2 * i + 1] = hexmap[data[i] & 0x0F];
+  }
+  return s;
+}
+
+std::string string_to_hex(const std::string& input)
+{
+  static const char* const lut = "0123456789ABCDEF";
+  size_t len = input.length();
+
+  std::string output;
+  output.reserve(2 * len);
+  for (size_t i = 0; i < len; ++i)
+    {
+      const unsigned char c = input[i];
+      output.push_back(lut[c >> 4]);
+      output.push_back(lut[c & 15]);
+    }
+  return output;
+}
+
+
+std::string hex_to_string(const std::string& input)
+{
+  static const char* const lut = "0123456789ABCDEF";
+  size_t len = input.length();
+  if (len & 1) throw std::invalid_argument("odd length");
+
+  std::string output;
+  output.reserve(len / 2);
+  for (size_t i = 0; i < len; i += 2)
+    {
+      char a = input[i];
+      const char* p = std::lower_bound(lut, lut + 16, a);
+      if (*p != a) throw std::invalid_argument("not a hex digit");
+
+      char b = input[i + 1];
+      const char* q = std::lower_bound(lut, lut + 16, b);
+      if (*q != b) throw std::invalid_argument("not a hex digit");
+
+      output.push_back(((p - lut) << 4) | (q - lut));
+    }
+  return output;
+}
+
+RSA * createRSA(unsigned char * key,int publica)
+{
+    RSA *rsa= NULL;
+    BIO *keybio ;
+    keybio = BIO_new_mem_buf(key, -1);
+    if (keybio==NULL)
+    {
+        printf( "Failed to create key BIO");
+        return 0;
+    }
+    if(publica)
+    {
+        rsa = PEM_read_bio_RSA_PUBKEY(keybio, &rsa,NULL, NULL);
+    }
+    else
+    {
+        rsa = PEM_read_bio_RSAPrivateKey(keybio, &rsa,NULL, NULL);
+    }
+ 
+    return rsa;
+}
+ 
+unsigned char* public_encrypt(unsigned char * data,int data_len,unsigned char * key)
+{
+  unsigned char encrypted[4098] = {};  
+  RSA * rsa = createRSA(key,1);  
+  int result = RSA_public_encrypt(data_len,data,encrypted,rsa,padding);
+  unsigned char* ret = encrypted;
+
+  if(result == -1){
+    cout<<"public_encrypt fails!"<<endl;
+    exit(-1);
+  }
+
+  return ret;
+}
+
+
+unsigned char* private_decrypt(unsigned char * enc_data,int data_len,unsigned char * key)
+{
+  unsigned char decrypted[4098];
+  RSA * rsa = createRSA(key,0);
+  int  result = RSA_private_decrypt( data_len,enc_data,decrypted,rsa,padding );
+
+  if(result == -1){
+    cout<<"private_decrypt fails!"<<endl;
+    exit(-1);
+  }
+  unsigned char* ret = decrypted;
+  return ret;
+}
+
+
+unsigned char* private_encrypt(unsigned char * data,int data_len,unsigned char * key)
+{
+  unsigned char encrypted[4098];
+  
+  RSA * rsa = createRSA(key,0);
+  //data = (unsigned char*)"abcde";
+
+  int result = RSA_private_encrypt(data_len,data,encrypted,rsa,padding);
+  
+  if(result == -1){
+    cout<<"private_encrypt fails!"<<endl;
+    exit(-1);
+   }
+
+  unsigned char* ret = encrypted;
+  return ret;
+}
+
+
+unsigned char* public_decrypt(unsigned char * enc_data,int data_len,unsigned char * key)
+{
+  unsigned char decrypted[4098];
+  RSA * rsa = createRSA(key,1);
+  int  result = RSA_public_decrypt(data_len,enc_data,decrypted,rsa,padding);
+  if(result == -1){
+    cout<<"public_decrypt fails!"<<endl;
+    exit(-1);
+  }
+
+    
+  unsigned char* ret = decrypted;
+  return ret;
+  
+}
+
 
 vector<string> split(string orignal, char target){
   vector<string> ret;
@@ -125,47 +280,41 @@ Decrypt(EVP_CIPHER_CTX *e, unsigned char *ciphertext, int *len)
   return (char*)plaintext;
 }
 
-
-
-std::string string_to_hex(const std::string& input)
-{
-  static const char* const lut = "0123456789ABCDEF";
-  size_t len = input.length();
-
-  std::string output;
-  output.reserve(2 * len);
-  for (size_t i = 0; i < len; ++i)
-    {
-      const unsigned char c = input[i];
-      output.push_back(lut[c >> 4]);
-      output.push_back(lut[c & 15]);
+void send_M0_to_t(string M0){
+  std::stringstream ss(M0);
+  int count = 0;
+  string piece;
+  string temp_enc;
+  string hex_EK0;
+  while(std::getline(ss, piece, ',')) {
+    if(count == 2){
+      temp_enc = piece;
+    }else if(count == 3){
+      hex_EK0 = piece;
     }
-  return output;
+    cout<<count<<":\n"<<piece<<endl;
+    count++;
+  }
+
+  if(DEBUG){
+    cout<<"PKEK0 is:"<<endl<<temp_enc<<endl;
+  }
+  ifstream tpri("SALSCFt.pri");
+  string t_pri((std::istreambuf_iterator<char>(tpri)),
+	       std::istreambuf_iterator<char>());
+  cout<<"Private key for t is:\n"<<t_pri<<endl;
+
+  temp_enc = hex_to_string(temp_enc);
+  unsigned char* enc = (unsigned char*)temp_enc.c_str();
+  unsigned char* dec = private_decrypt((unsigned char*)enc,128, (unsigned char*)t_pri.c_str());
+  if(DEBUG){
+    string debug = hexStr(dec,64);
+    cout<<"Decrypted PKE_K0 is:\n"<<debug<<endl;
+  }
 }
 
 
-std::string hex_to_string(const std::string& input)
-{
-  static const char* const lut = "0123456789ABCDEF";
-  size_t len = input.length();
-  if (len & 1) throw std::invalid_argument("odd length");
 
-  std::string output;
-  output.reserve(len / 2);
-  for (size_t i = 0; i < len; i += 2)
-    {
-      char a = input[i];
-      const char* p = std::lower_bound(lut, lut + 16, a);
-      if (*p != a) throw std::invalid_argument("not a hex digit");
-
-      char b = input[i + 1];
-      const char* q = std::lower_bound(lut, lut + 16, b);
-      if (*q != b) throw std::invalid_argument("not a hex digit");
-
-      output.push_back(((p - lut) << 4) | (q - lut));
-    }
-  return output;
-}
 
 void write( int message_size, string w, string encipher,string y, string z){
   file<<message_size<<"|"<<w<<"|"<<string_to_hex(encipher)<<"|"<<string_to_hex(y)<<"|"<<string_to_hex(z)<<endl;
@@ -208,17 +357,32 @@ void createlog(string filename){
   time(&d);
 
 
-  ifstream myfile ("proj3.symm");
+  ifstream myfile ("SALSCF.symm");
   if (myfile.is_open())
     {
-      while ( getline (myfile,A0) );
+      string a0((std::istreambuf_iterator<char>(myfile)),
+		     std::istreambuf_iterator<char>());
+      A0 = a0;
       myfile.close();
     }
 
   if(DEBUG)
     cout<<"A0: "<<string_to_hex(A0)<<endl;
 
+  unsigned int salt[] = {12345, 54321};
+  string key_data = Hash( (W[0]+A0).c_str() );
+  int key_data_len = key_data.length();
+  
+  EVP_CIPHER_CTX en, de;
 
+ 
+  if (aes_init( (unsigned char*)key_data.c_str(), key_data_len, (unsigned char *)&salt, &en, &de)) {
+    printf("Couldn't initialize AES cipher\n");
+    return;
+  }
+
+  //##################################
+  // Startup
   struct tm * timeinfo;
   timeinfo = localtime (&d);
   timeinfo->tm_min += 100;
@@ -226,31 +390,134 @@ void createlog(string filename){
   idlog = filename;
   LastA = A0;
   
+  int k0_len = key_data_len;
+  /*
+  unsigned char k0[k0_len];
+  memset(k0, 0, sizeof(k0));
+  if (!RAND_bytes(k0, k0_len))
+    {
+      exit(-1);
+    }
+  */
+  unsigned char* k0 = (unsigned char*)key_data.c_str();
 
+  unsigned char iv[AES_BLOCK_SIZE];
+  if (!RAND_bytes(iv, AES_BLOCK_SIZE))
+    {
+      exit(-1);
+    }
+
+  AES_KEY enc_key, dec_key;
+  unsigned char enc_out[AES_BLOCK_SIZE];
+  unsigned char dec_out[AES_BLOCK_SIZE];
+  AES_set_encrypt_key(k0, k0_len, &enc_key);
+
+
+  // Deal with certificate
+  ifstream t("SALSCFu.pem");
+  string cer((std::istreambuf_iterator<char>(t)),
+                 std::istreambuf_iterator<char>());
+
+  // Conver pem to X509
+  const unsigned char *data = (const unsigned char*)cer.c_str();
+  BIO *bio;
+  X509 *certificate;
+  bio = BIO_new(BIO_s_mem());
+  BIO_puts(bio, (const char*)data);
+  certificate = PEM_read_bio_X509(bio, NULL, NULL, NULL);
+  // Conver ends here
   
-
   string D0( ctime(&d) );
   string temp( ctime(&dplus) );
   D0 = D0 + temp;
-  D0 += idlog; 
+  D0 += idlog;   
+  string X0("0,");
+  X0 += idlog;
+  X0 += ",";
+  X0 += string_to_hex(cer);
+  X0 += ",";
+  X0 += string_to_hex(A0);
+  
+  //# Use t's public key to encrypt K0
+  ifstream tpub("SALSCFt.pub");
+  string t_pub((std::istreambuf_iterator<char>(tpub)),
+	     std::istreambuf_iterator<char>());
+  
+  if(DEBUG){
+    cout<<"Public key for t is:\n"<<t_pub<<endl;
+    cout<<"k0:"<<endl<<hexStr(k0,k0_len)<<endl;
+  }
+  unsigned char* enc = public_encrypt(k0,k0_len, (unsigned char*)t_pub.c_str());
+  string PKEK0 = hexStr(enc, 128);
+  
+  if(DEBUG){
+    cout<<"PKE_K0:"<<endl<<PKEK0<<endl;
+    ifstream tpri("SALSCFt.pri");
+    string t_pri((std::istreambuf_iterator<char>(tpri)),
+		 std::istreambuf_iterator<char>());
+  
+
+    cout<<"Private key for t is:\n"<<t_pri<<endl;
+    unsigned char* dec = private_decrypt(enc,128, (unsigned char*)t_pri.c_str());
+
+    string debug = hexStr(dec,k0_len);
+
+    cout<<"Decrypted PKE_K0 is:\n"<<debug<<endl;
+  }
+
+  //# Sign X0
+  ifstream upri("SALSCFu.pri");
+  string u_pri((std::istreambuf_iterator<char>(upri)),
+	       std::istreambuf_iterator<char>());
+  if(DEBUG){
+    cout<<"X0: "<<endl<<X0<<endl;
+    cout<<"private key for u is:"<<endl<<u_pri<<endl;
+  }
+
+
+  unsigned char X0_hash[20];
+  SHA1((const unsigned char*)X0.c_str(), X0.length(), X0_hash);
+  unsigned char* sig = private_encrypt(X0_hash, 20, (unsigned char*)u_pri.c_str());
+  if(DEBUG){
+    cout<<"X0 Hash is:"<<endl<<hexStr(X0_hash, 20)<<endl;
+    ifstream upub("SALSCFu.pub");
+    string u_pub((std::istreambuf_iterator<char>(upub)),
+		 std::istreambuf_iterator<char>());
+    cout<<"public key for u is:"<<endl<<u_pub<<endl;
+    unsigned char* org = public_decrypt(sig, 128, (unsigned char*)u_pub.c_str());
+    cout<<"Orignial X0 Hash is:"<<endl<<hexStr(org, 20)<<endl;
+  }
+
+  string temp_EK0 = X0+","+hexStr(X0_hash,20);
+  if(DEBUG){
+    cout<<"Message in EK0 is:"<<endl<<temp_EK0<<endl;
+  }
+  int temp_EK0_len = temp_EK0.length();
+  unsigned char* EK0 = (unsigned char*)Encrypt(&en, (unsigned char*)temp_EK0.c_str(), &temp_EK0_len);
+
+  int EK0_len = temp_EK0_len;
+  if(DEBUG){
+    string dec_EK0 = string( Decrypt( &de, EK0, &temp_EK0_len) );
+    cout<<"---------------\nDecrypt data: \n"<<dec_EK0<<endl;
+  }
+
+  string M0("0");
+  M0 += ","+idlog +","+PKEK0 + ","+hexStr(EK0, EK0_len);
+  D0 += M0;
+
+  send_M0_to_t(M0);
+  exit(-1);
+  // Startup ends here
+  //##################################
+ 
 
 
   //################################################
-  unsigned int salt[] = {12345, 54321};
-  string key_data = Hash( (W[0]+A0).c_str() );
-  int key_data_len = key_data.length();
-  int plaintext_len = D0.length()+1;
-  EVP_CIPHER_CTX en, de;
 
+  int plaintext_len = D0.length()+1;
   if(DEBUG)
     cout<<"Key for D0 is: "<<key_data<<", with size: "<<key_data_len<<endl;
-    
-  if (aes_init( (unsigned char*)key_data.c_str(), key_data_len, (unsigned char *)&salt, &en, &de)) {
-    printf("Couldn't initialize AES cipher\n");
-    return;
-  }
-
-  
+     
   unsigned char* ciphertext = (unsigned char*)Encrypt(&en, (unsigned char*)D0.c_str(), &plaintext_len);
   string encipher( (const char*)ciphertext);
 
@@ -547,10 +814,13 @@ void verifyall(string infile, string outfile){
     cout<<"Reading from "<<infile<<", output to "<<outfile<<endl;
 
 
-  ifstream my ("proj3.symm");
+  ifstream my ("SALSCF.symm");
+
   if (my.is_open())
     {
-      while ( getline (my,A0) );
+      string a0((std::istreambuf_iterator<char>(my)),
+		std::istreambuf_iterator<char>());
+      A0 = a0;
       my.close();
     }
 

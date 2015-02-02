@@ -1,3 +1,3 @@
 #!/bin/sh
 
-rm proj3.p*
+rm SALSCFt.* SALSCFu.* SALSCF.symm 
