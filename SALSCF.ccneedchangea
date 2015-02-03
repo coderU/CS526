@@ -23,7 +23,7 @@
 
 
 using namespace std;
-int DEBUG = 0;
+int DEBUG = 1;
 string W[] = {"LogleInitializationType","MessageType","NormalCloseMessage","ResponseMessageType","AbnormalCloseType"};
 
 
@@ -168,7 +168,7 @@ unsigned char* private_decrypt(unsigned char * enc_data,int data_len,unsigned ch
 
   if(result == -1){
     cout<<"private_decrypt fails!"<<endl;
-    //exit(-1);
+    exit(-1);
   }
   unsigned char* ret = decrypted;
   return ret;
@@ -186,7 +186,7 @@ unsigned char* private_encrypt(unsigned char * data,int data_len,unsigned char *
   
   if(result == -1){
     cout<<"private_encrypt fails!"<<endl;
-    //exit(-1);
+    exit(-1);
    }
   if(DEBUG)
     cout<<"private_encrypt: "<<result<<endl;
@@ -206,7 +206,7 @@ unsigned char* public_decrypt(unsigned char * enc_data,int data_len,unsigned cha
   int  result = RSA_public_decrypt(data_len,enc_data,decrypted,rsa,padding);
   if(result == -1){
     cout<<"public_decrypt fails!"<<endl;
-    //exit(-1);
+    exit(-1);
   }
   //  cout<<"MEM Compare-public decrypt: "<<memcmp(enc_data,cmp,128)<<endl;
   enc_data = cmp;
@@ -330,8 +330,7 @@ string send_M0_to_t(string M0, int EK0_len){
   ifstream tpri("SALSCFt.pri");
   string t_pri((std::istreambuf_iterator<char>(tpri)),
 	       std::istreambuf_iterator<char>());
-  if(DEBUG)
-    cout<<"Private key for t is:\n"<<t_pri<<endl;
+  cout<<"Private key for t is:\n"<<t_pri<<endl;
 
   temp_enc = hex_to_string(temp_enc);
   unsigned char* enc = (unsigned char*)temp_enc.c_str();
@@ -354,8 +353,7 @@ string send_M0_to_t(string M0, int EK0_len){
     return "fail";
   }
   int temp_EK0_len = EK0_len;
-  if(DEBUG)
-    cout<<"EK0_len_dec: "<<EK0_len<<endl;
+  cout<<"EK0_len_dec: "<<EK0_len<<endl;
   string dec_EK0 = string( Decrypt( &de, enc_EK0, &temp_EK0_len) );
   if(DEBUG)
     cout<<"X0, sign(X0):"<<endl<<dec_EK0<<endl;
@@ -382,13 +380,6 @@ string send_M0_to_t(string M0, int EK0_len){
     count++;
   }
 
-
-  ofstream myfile;
-  string filename = idlog+".key";
-  myfile.open (filename.c_str());
-  myfile << hex_to_string_len(hex_A0, 512);
-  myfile.close();
-  
   string X0(p);
   X0 += ","+idlog;
   X0 += ",";
@@ -409,8 +400,7 @@ string send_M0_to_t(string M0, int EK0_len){
   unsigned char* temp_X0 = (unsigned char*)hex_to_string_len(hex_signed_hash_X0,256).c_str();
   memcpy(signed_X0,temp_X0, 128);
   //cout<<"Compare: "<<memcmp(signed_X0, sig, 256)<<endl;
-  if(DEBUG)
-    cout<<"signed: "<<endl<<hexStr(signed_X0, 256)<<endl<<"-------------------------"<<endl;
+  cout<<"signed: "<<endl<<hexStr(signed_X0, 256)<<endl<<"-------------------------"<<endl;
   //cout<<"signed: "<<endl<<hexStr(sig, 256)<<endl<<"-------------------------"<<endl;
   unsigned char* org = public_decrypt( signed_X0, 128, (unsigned char*)u_pub.c_str());
 
@@ -420,7 +410,7 @@ string send_M0_to_t(string M0, int EK0_len){
   }
   if(memcmp(org, X0_hash, 20)!= 0){
     cout<<"Signature verify failed!\nExiting!"<<endl;
-    //exit(-1);
+    exit(-1);
   }
 
   string A1 = Hash( LastA.c_str() );
@@ -488,7 +478,7 @@ void write( int message_size, string w, string encipher,string y, string z){
 }
 
 
-void send_M1_to_u(string message,string idlog){
+void send_M1_to_u(string message){
   if(DEBUG)
     cout<<"Adding message: "<<message<<endl;
 
@@ -549,7 +539,7 @@ void send_M1_to_u(string message,string idlog){
 
 
   write(Df.size(), W[3], encipher,y,z);
-  cout<<"Created log: "<<idlog<<endl;
+  cout<<"Added log entry number "<< id++<<endl;
 }
 
 
@@ -588,23 +578,7 @@ void createlog(string filename){
   id = 0;
   time(&d);
 
-  unsigned char a0[256];
-  if (!RAND_bytes(a0, 256))
-    {
-      cout<<"RAND wrong"<<endl;
-      //exit(-1);
-    }
-  A0 = string(a0, a0 + 256/ sizeof(a0[0]));
-  
-  if(DEBUG){
-    ofstream myfile;
-    string filename = "key.txt";
-    myfile.open (filename.c_str());
 
-    myfile << A0;
-    myfile.close();
-  }
-  /*
   ifstream myfile ("SALSCF.symm");
   if (myfile.is_open())
     {
@@ -613,7 +587,7 @@ void createlog(string filename){
       A0 = a0;
       myfile.close();
     }
-  */
+
   if(DEBUG)
     cout<<"A0: "<<string_to_hex(A0)<<endl;
 
@@ -646,7 +620,7 @@ void createlog(string filename){
   memset(k0, 0, sizeof(k0));
   if (!RAND_bytes(k0, k0_len))
     {
-      //exit(-1);
+      exit(-1);
     }
   */
   unsigned char* k0 = (unsigned char*)key_data.c_str();
@@ -654,7 +628,7 @@ void createlog(string filename){
   unsigned char iv[AES_BLOCK_SIZE];
   if (!RAND_bytes(iv, AES_BLOCK_SIZE))
     {
-      //exit(-1);
+      exit(-1);
     }
 
   AES_KEY enc_key, dec_key;
@@ -731,7 +705,7 @@ void createlog(string filename){
   if(DEBUG){
     cout<<"X0 Hash is:"<<endl<<hexStr(X0_hash, 20)<<endl;
   }
-  if(0){
+  if(!DEBUG){
     
     ifstream upub("SALSCFu.pub");
     string u_pub((std::istreambuf_iterator<char>(upub)),
@@ -826,7 +800,7 @@ void createlog(string filename){
 
   
   lock = 1;
-  send_M1_to_u(M1,idlog);
+  send_M1_to_u(M1);
 }
 
 
@@ -955,8 +929,6 @@ void closelog(){
   write(Df.size(), W[2], encipher,y,z);
   lock = 0;
   file.close();
-  cout<<"Closed: "<< idlog<<endl;
-  idlog ="";
 }
 
 void verify(int number){
@@ -1081,7 +1053,7 @@ void verifyall(string infile, string outfile){
     cout<<"Reading from "<<infile<<", output to "<<outfile<<endl;
 
 
-  ifstream my ((infile+".key").c_str());
+  ifstream my ("SALSCF.symm");
 
   if (my.is_open())
     {
@@ -1159,7 +1131,7 @@ void verifyall(string infile, string outfile){
 
 
 
-	  if( !w.compare(W[0]) || !w.compare(W[2]) ||  !w.compare(W[3]) || !w.compare(W[4]) ){
+	  if( !w.compare(W[0]) || !w.compare(W[2]) ){
 	      
 	  }else{
 	    of<<decipher<<endl;
@@ -1188,31 +1160,24 @@ int main(int argc, char* argv[]){
   string commands;
   vector<string> commandList;
   while(true){
-    cout<<"Please choose a command: newlog, append, closelog, verify, verifylog, exit."<<endl;
+    cout<<"Please choose a command: createlog, add, closelog, verify, verifyall, exit."<<endl;
     getline(cin,commands);
     if(commands.compare("") == 0)
       continue;
     commandList = split(commands,' ');
 
     string command = commandList.at(0);
-    if( command.compare("newlog") == 0){      
+    if( command.compare("createlog") == 0){      
       if(DEBUG){
 	cout<<"Command: createlog"<<endl;
       }
-      if(commandList.size()<2){
-	cout<<"Please input log name!"<<endl;
-	continue;
-      }
+      
       createlog( commandList.at(1) );
 
-    }else if( command.compare("append") == 0 ){
+    }else if( command.compare("add") == 0 ){
       if(DEBUG)
 	cout<<"Command: add"<<endl;
       if(lock){
-	if(commandList.size()<2){
-	  cout<<"Please input message!"<<endl;
-	  continue;
-	}
 	string message = "";
 	for(int i = 1 ; i < commandList.size() ; i++){
 	  message.append( commandList.at(i) );
@@ -1221,41 +1186,23 @@ int main(int argc, char* argv[]){
 	}
 
 	add( message);
-      }else{
-	cout<<"You have not created a log yet"<<endl;
       }
     }else if( command.compare("closelog") == 0 ){
       if(DEBUG)
 	cout<<"Command: closelog"<<endl;
       if(lock)
 	closelog();
-      else{
-	cout<<"You have not created a log yet"<<endl;
-      }
     }else if( command.compare("verify") == 0 ){
       if(DEBUG)
 	cout<<"Command: verify"<<endl;
-      if(lock){
-	if(commandList.size()<2){
-	  cout<<"Please input entry number!"<<endl;
-	  continue;
-	}
+      if(lock)
 	verify( atoi(commandList.at(1).c_str()) );
-      }else{
-	cout<<"You have not created a log yet"<<endl;
-      }
-    }else if( command.compare("verifylog") == 0 ){
+
+    }else if( command.compare("verifyall") == 0 ){
       if(DEBUG)
 	cout<<"Command: verifyall"<<endl;
-      if(!lock){
-	if(commandList.size()<3){
-	  cout<<"Please input in-file-name and out-file-name!"<<endl;
-	  continue;
-	}
+      if(!lock)
 	verifyall(commandList.at(1),commandList.at(2));
-      }else{
-	cout<<"You can not verify a whole log while a log is current openning"<<endl;
-      }
     }else if( command.compare("exit") == 0 ){
       if(DEBUG)
 	cout<<"Command: exit"<<endl;
