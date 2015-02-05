@@ -550,6 +550,7 @@ void send_M1_to_u(string message,string idlog){
 
   write(Df.size(), W[3], encipher,y,z);
   cout<<"Created log: "<<idlog<<endl;
+  id++;
 }
 
 
