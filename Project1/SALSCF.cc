@@ -1199,7 +1199,7 @@ int main(int argc, char* argv[]){
       if(DEBUG){
 	cout<<"Command: createlog"<<endl;
       }
-      if(commandList.size()<2){
+      if(commandList.size() != 2){
 	cout<<"Please input log name!"<<endl;
 	continue;
       }
@@ -1236,7 +1236,7 @@ int main(int argc, char* argv[]){
       if(DEBUG)
 	cout<<"Command: verify"<<endl;
       if(lock){
-	if(commandList.size()<2){
+	if(commandList.size() != 2){
 	  cout<<"Please input entry number!"<<endl;
 	  continue;
 	}
@@ -1248,7 +1248,7 @@ int main(int argc, char* argv[]){
       if(DEBUG)
 	cout<<"Command: verifyall"<<endl;
       if(!lock){
-	if(commandList.size()<3){
+	if(commandList.size() != 3){
 	  cout<<"Please input in-file-name and out-file-name!"<<endl;
 	  continue;
 	}
