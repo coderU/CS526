@@ -732,7 +732,7 @@ void createlog(string filename){
   if(DEBUG){
     cout<<"X0 Hash is:"<<endl<<hexStr(X0_hash, 20)<<endl;
   }
-  if(0){
+  if(DEBUG){
     
     ifstream upub("SALSCFu.pub");
     string u_pub((std::istreambuf_iterator<char>(upub)),
@@ -742,6 +742,7 @@ void createlog(string filename){
     memcpy(cmp, sig, 128);
     cout<<"MEM Compare: "<<memcmp(sig,cmp,128)<<endl;
     unsigned char* org = public_decrypt(cmp, 128, (unsigned char*)u_pub.c_str());
+    sig = cmp;
     cout<<"MEM Compare: "<<memcmp(sig,cmp,128)<<endl;
     //org = public_decrypt(sig, 128, (unsigned char*)u_pub.c_str());
     cout<<"Orignial X0 Hash is:"<<endl<<hexStr(org, 20)<<endl;
